@@ -18,18 +18,17 @@ namespace Windows.Weather
         
         private CancellationTokenSource _cts;
         
-        public override void OpenWindow()
+        public override void OpenWindow(Action onOpenFinished)
         {
             gameObject.SetActive(true);
             
-            FetchWeather(OnWindowOpened);
+            FetchWeather(onOpenFinished);
         }
         
         public override void CloseWindow()
         {
             _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
+            
             gameObject.SetActive(false);
         }
         
@@ -48,7 +47,7 @@ namespace Windows.Weather
             }
             catch (OperationCanceledException)
             {
-                DebugManager.Log(DebugCategory.Net, "FetchWeather was cancelled");
+                DebugManager.Log(DebugCategory.Net, "Fetch weather was cancelled");
             }
         }
         
@@ -57,6 +56,7 @@ namespace Windows.Weather
             DebugManager.Log(DebugCategory.Net, "Fetch weather");
             
             _requestsQueue.Enqueue(
+                RequestsIDs.FetchWeather,
                 async () => await _requestHandler.SendStringRequest(APIEndpoints.WeatherAPI, _cts.Token),
                 result =>
                 {
@@ -76,15 +76,15 @@ namespace Windows.Weather
 
         private void ProcessWeatherPeriod(WeatherPeriod period, Action onFinished = null)
         {
-            DebugManager.Log(DebugCategory.Net, "Process weather period");
+            DebugManager.Log(DebugCategory.Net, "Process weather period, fetch icon");
 
-            _requestsQueue.Enqueue(async () => await  _requestHandler.SendTextureRequest(period.icon, _cts.Token),
+            _requestsQueue.Enqueue(
+                RequestsIDs.FetchWeatherIcon,
+                async () => await  _requestHandler.SendTextureRequest(period.icon, _cts.Token),
                 resultTexture =>
                 {
                     if (resultTexture != null)
                     {
-                        DebugManager.Log(DebugCategory.Net, "Set weather");
-
                         weatherView.SetWeather(resultTexture.ConvertToSprite(), period.temperature.ToString());
 
                         onFinished?.Invoke();

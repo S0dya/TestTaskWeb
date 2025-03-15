@@ -10,6 +10,8 @@ namespace Windows.Dogs
         [SerializeField] private TextMeshProUGUI nameText;
         [SerializeField] private TextMeshProUGUI descriptionText;
         [SerializeField] private Button[] closeButtons;
+        
+        [SerializeField] private RectTransform contentTransform;
 
         private void Awake()
         {
@@ -27,6 +29,8 @@ namespace Windows.Dogs
             descriptionText.text = description;
             
             windowObject.SetActive(true);
+            
+            LayoutRebuilder.ForceRebuildLayoutImmediate(contentTransform);
         }
         public void CloseWindow()
         {

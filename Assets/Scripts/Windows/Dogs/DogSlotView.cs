@@ -13,6 +13,8 @@ namespace Windows.Dogs
         [SerializeField] private TextMeshProUGUI indexText;
         [SerializeField] private RectTransform loadingArrowsTransform;
         
+        private float _initialArrowRotation;
+        
         private Tween _loadingTween;
 
         private void Awake()
@@ -36,16 +38,18 @@ namespace Windows.Dogs
         {
             _loadingTween?.Kill();
             loadingArrowsTransform.gameObject.SetActive(false);
+            
+            loadingArrowsTransform.rotation = Quaternion.Euler(0, 0, _initialArrowRotation);
         }
 
         private void PlayLoading()
         {
             _loadingTween?.Kill();
-
+            
             _loadingTween = loadingArrowsTransform
-                .DORotate(new Vector3(0, 0, -360), 1, RotateMode.FastBeyond360)
-                .SetLoops(-1, LoopType.Restart) 
-                .SetEase(Ease.Linear); 
+                .DORotate(new Vector3(0, 0, 360), 1, RotateMode.FastBeyond360)
+                .SetEase(Ease.Linear) 
+                .SetLoops(-1, LoopType.Restart);
         }
     }
 }

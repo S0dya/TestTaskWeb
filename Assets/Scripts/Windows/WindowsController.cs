@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,6 +6,8 @@ namespace Windows
 {
     public class WindowsController : MonoBehaviour
     {
+        [SerializeField] private WindowEnum initialWindow = WindowEnum.Weather;
+        [Space]
         [SerializeField] private GameObject loader;
         [SerializeField] private WindowData[] windows;
         [Space]
@@ -28,10 +27,10 @@ namespace Windows
 
         private void Start()
         {
-            OpenWindow(WindowEnum.Weather);
+            OpenWindow(initialWindow);
         }
 
-        public async UniTask OpenWindow(WindowEnum windowKey)
+        private void OpenWindow(WindowEnum windowKey)
         {
             if (_currentWindow == windowKey) return; 
             
@@ -48,8 +47,7 @@ namespace Windows
             
             loader.SetActive(true);
         
-            windowData.Window.OnWindowOpened = () => loader.SetActive(false);
-            windowData.Window.OpenWindow();
+            windowData.Window.OpenWindow(() => loader.SetActive(false));
             _currentWindow = windowData.Key;
         }
     

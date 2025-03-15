@@ -44,6 +44,8 @@ namespace Network
                 
                 return null;
             }
+            
+            await UniTask.Delay(TimeSpan.FromSeconds(0.5f), cancellationToken: token); 
 
             return request;
         }

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Cysharp.Threading.Tasks;
-using UnityEngine;
 
 namespace Network
 {
@@ -11,54 +11,70 @@ namespace Network
         private bool _isProcessing;
         private IRequestData _currentRequest;
 
-        public void Enqueue<T>(Func<UniTask<T>> requestFunc, Action<T> onComplete, Action onCancel = null)
+        public void Enqueue<T>(string requestId, Func<UniTask<T>> requestFunc, Action<T> onComplete, Action onCancel = null)
         {
-            var request = new RequestData<T>(requestFunc, onComplete, onCancel);
+            CancelRequest(requestId);
+
+            var request = new RequestData<T>(requestId, requestFunc, onComplete, onCancel);
             _queue.Enqueue(request);
 
-            DebugManager.Log(DebugCategory.Net, "Request enqueued");
-            
+            DebugManager.Log(DebugCategory.Net, $"Request enqueued - {requestId}");
+    
             if (!_isProcessing)
             {
                 ProcessQueue().Forget();
             }
         }
-
-        public void RemovePendingRequests()
+        
+        public void CancelRequest(string requestId)
         {
-            _queue.Clear();
-            
-            DebugManager.Log(DebugCategory.Net, "Queue cleared");
-        }
-
-        public void CancelCurrentRequest()
-        {
-            if (_currentRequest != null)
+            var request = _queue.FirstOrDefault(x => x.RequestId == requestId);
+            if (request != null)
             {
-                _currentRequest.Cancel();
-                _currentRequest = null;
-
-                DebugManager.Log(DebugCategory.Net, "Current request canceled");
+                request.Cancel();
+                
+                DebugManager.Log(DebugCategory.Net, $"Existing request cancelled - {requestId}");
             }
         }
 
         private async UniTaskVoid ProcessQueue()
         {
-            DebugManager.Log(DebugCategory.Net, "Request started processing");
-            
             _isProcessing = true;
 
             while (_queue.Count > 0)
             {
                 _currentRequest = _queue.Dequeue();
-                if (_currentRequest.IsCancelled) continue;
 
-                object result = await _currentRequest.Execute();
-                if (!_currentRequest.IsCancelled)
+                if (_currentRequest.IsCancelled)
                 {
-                    _currentRequest.Complete(result);
-                    
-                    DebugManager.Log(DebugCategory.Net, "Current request completed");
+                    DebugManager.Log(DebugCategory.Net, $"Skipped cancelled request - {_currentRequest.RequestId}");
+                    continue;
+                }
+
+                try
+                {
+                    var executeTask = _currentRequest.Execute();
+            
+                    while (executeTask.Status == UniTaskStatus.Pending)
+                    {
+                        if (_currentRequest.IsCancelled)
+                        {
+                            DebugManager.Log(DebugCategory.Net, $"Request {_currentRequest.RequestId} cancelled while executing");
+                            break;
+                        }
+                        await UniTask.Yield(); 
+                    }
+
+                    if (!_currentRequest.IsCancelled)
+                    {
+                        object result = await executeTask;
+                        _currentRequest.Complete(result);
+                        DebugManager.Log(DebugCategory.Net, "Current request completed");
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    DebugManager.Log(DebugCategory.Net, $"Request {_currentRequest.RequestId} was forcefully cancelled");
                 }
             }
 

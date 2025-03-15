@@ -5,10 +5,11 @@ namespace Network
 {
     public interface IRequestData
     {
-        public bool IsCancelled { get; }
         public UniTask<object> Execute();
         public void Complete(object result);
         public void Cancel();
+        public bool IsCancelled { get; }
+        public string RequestId { get; }
     }
 
     public class RequestData<T> : IRequestData
@@ -16,10 +17,13 @@ namespace Network
         private readonly Func<UniTask<T>> _requestFunc;
         private readonly Action<T> _onComplete;
         private readonly Action _onCancel;
+    
         public bool IsCancelled { get; private set; }
+        public string RequestId { get; } 
 
-        public RequestData(Func<UniTask<T>> requestFunc, Action<T> onComplete, Action onCancel)
+        public RequestData(string requestId, Func<UniTask<T>> requestFunc, Action<T> onComplete, Action onCancel)
         {
+            RequestId = requestId;
             _requestFunc = requestFunc;
             _onComplete = onComplete;
             _onCancel = onCancel;
@@ -30,18 +34,18 @@ namespace Network
             return IsCancelled ? default : await _requestFunc();
         }
 
-        public void Cancel()
-        {
-            IsCancelled = true;
-            _onCancel?.Invoke();
-        }
-
         public void Complete(object result)
         {
             if (!IsCancelled && result is T)
             {
                 _onComplete?.Invoke((T)result);
             }
+        }
+
+        public void Cancel()
+        {
+            IsCancelled = true;
+            _onCancel?.Invoke();
         }
     }
 }

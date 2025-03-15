@@ -4,13 +4,13 @@ using System.Collections.Generic;
 namespace Windows.Dogs
 {
     [Serializable]
-    public class DogsData
+    public class DogsResponse
     {
         public List<DogData> data;
     }
 
     [Serializable]
-    public class SingleDogData
+    public class DogResponse
     {
         public DogData data;
     }

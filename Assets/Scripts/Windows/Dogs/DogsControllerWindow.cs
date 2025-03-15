@@ -17,72 +17,78 @@ namespace Windows.Dogs
         
         private DogSlotView _currentDogSlotView;
         
-        private CancellationTokenSource _cts;
+        private CancellationTokenSource _dogsCts;
+        private CancellationTokenSource _dogCts;
 
-        public override void OpenWindow()
+        public override void OpenWindow(Action onOpenFinished)
         {
             gameObject.SetActive(true);
 
-            FetchDogs(OnWindowOpened);
+            FetchDogs(onOpenFinished);
         }
         public override void CloseWindow()
         {
-            _cts?.Cancel();
-            _cts?.Dispose();
-            _cts = null;
+            _dogsCts?.Cancel(); 
+            _dogCts?.Cancel(); 
+            
             gameObject.SetActive(false);
 
             _currentDogSlotView?.StopLoading();
         }
 
-        private async void FetchDogs(Action onFinished = null)
+        private void FetchDogs(Action onFinished = null)
         {
-            _cts = new CancellationTokenSource();
+            _dogsCts = new CancellationTokenSource();
 
-            try
-            {
-                _requestsQueue.Enqueue(
-                    async () => await _requestHandler.SendStringRequest(APIEndpoints.DogBreedsAPI, _cts.Token),
-                    result => 
-                    {
-                        if (!string.IsNullOrEmpty(result))
-                        {
-                            var dogsData = JsonUtility.FromJson<DogsData>(result);
-
-                            if (dogsData != null && dogsData.data?.Count > 0)
-                            {
-                                InitSlots(dogsData.data);
-                                
-                                onFinished?.Invoke();
-                            }
-                        }
-                    });
-            }
-            catch (OperationCanceledException)
-            {
-                DebugManager.Log(DebugCategory.Net, "FetchDogs was cancelled");
-            }
-        }
-
-        private void FetchDog(string id)
-        {
+            DebugManager.Log(DebugCategory.Net, "Fetch dogs");
+            
             _requestsQueue.Enqueue(
-                async () => await _requestHandler.SendStringRequest(APIEndpoints.GetBreedDetails(id), _cts.Token),
+                RequestsIDs.FetchDogs,
+                async () => await _requestHandler.SendStringRequest(APIEndpoints.DogBreedsAPI, _dogsCts.Token),
                 result => 
                 {
                     if (!string.IsNullOrEmpty(result))
                     {
-                        var dogData = JsonUtility.FromJson<SingleDogData>(result);
+                        var dogsData = JsonUtility.FromJson<DogsResponse>(result);
 
+                        if (dogsData != null && dogsData.data?.Count > 0)
+                        {
+                            InitSlots(dogsData.data);
+                            
+                            onFinished?.Invoke();
+                        }
+                    }
+                }, 
+                () => _dogsCts.Cancel());
+        }
+        
+        private void FetchDog(string id)
+        {
+            _dogCts?.Cancel(); 
+            
+            _dogCts = new CancellationTokenSource();
+        
+            DebugManager.Log(DebugCategory.Net, "Fetch dog " + id);
+
+            _requestsQueue.Enqueue(
+                RequestsIDs.FetchDog,
+                async () => await _requestHandler.SendStringRequest(APIEndpoints.GetBreedDetails(id), _dogCts.Token),
+                result =>
+                {
+                    if (!string.IsNullOrEmpty(result))
+                    {
+                        var dogData = JsonUtility.FromJson<DogResponse>(result);
                         if (dogData != null)
                         {
-                            dogDescriptionView.OpenWindow(dogData.data.attributes.name, dogData.data.attributes.description);
-                                
+                            dogDescriptionView.OpenWindow(dogData.data.attributes.name,
+                                dogData.data.attributes.description);
+
                             _currentDogSlotView.StopLoading();
                             _currentDogSlotView = null;
                         }
                     }
-                });
+                },
+                () => _dogCts.Cancel());
         }
 
         private void InitSlots(List<DogData> dogsData)
