@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Network;
+using Tools;
+using Unity.VisualScripting;
 using UnityEngine;
 using Zenject;
 
@@ -9,7 +11,9 @@ namespace Windows.Dogs
 {
     public class DogsControllerWindow : WindowBase
     {
-        [SerializeField] private DogSlotView[] dogSlotViews;
+        [SerializeField] private DogSlotView dogSlotView;
+        [SerializeField] private Transform dogSlotsParent;
+        [Space]
         [SerializeField] private DogDescriptionView dogDescriptionView;
         
         [Inject] private RequestHandler _requestHandler;
@@ -20,6 +24,14 @@ namespace Windows.Dogs
         private CancellationTokenSource _dogsCts;
         private CancellationTokenSource _dogCts;
 
+        private ObjectPool _dogSlotsPool = new();
+        private List<DogSlotView> _activeDogSlotViews = new();
+
+        private void Awake()
+        {
+            _dogSlotsPool.Init(new []{ dogSlotView.gameObject }, dogSlotsParent, 10);
+        }
+        
         public override void OpenWindow(Action onOpenFinished)
         {
             gameObject.SetActive(true);
@@ -34,6 +46,9 @@ namespace Windows.Dogs
             gameObject.SetActive(false);
 
             _currentDogSlotView?.StopLoading();
+            
+            foreach (var activeDogSlotView in _activeDogSlotViews) _dogSlotsPool.Set(activeDogSlotView.gameObject);
+            _activeDogSlotViews.Clear();
         }
 
         private void FetchDogs(Action onFinished = null)
@@ -93,21 +108,25 @@ namespace Windows.Dogs
 
         private void InitSlots(List<DogData> dogsData)
         {
-            for (int i = 0; i < dogSlotViews.Length; i++)
+            for (int i = 0; i < dogsData.Count; i++)
             {
+                var dogSlotView = _dogSlotsPool.Get().GetComponent<DogSlotView>();
+                
                 int index = i;
-                dogSlotViews[i].Init(
+                dogSlotView.Init(
                     () => OnOpenSlotPressed(index, dogsData[index].id), 
                     dogsData[index].attributes.name, index + 1);
+
+                _activeDogSlotViews.Add(dogSlotView);
             }
         }
 
         private void OnOpenSlotPressed(int slotI, string id)
         {
-            if (_currentDogSlotView == dogSlotViews[slotI]) return;
+            if (_currentDogSlotView == _activeDogSlotViews[slotI]) return;
             
             _currentDogSlotView?.StopLoading();
-            _currentDogSlotView = dogSlotViews[slotI];
+            _currentDogSlotView = _activeDogSlotViews[slotI];
             _currentDogSlotView.StartLoading();
             
             FetchDog(id);
